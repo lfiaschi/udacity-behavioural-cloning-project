@@ -17,7 +17,7 @@ def Simple(input_shape):
     return model
 
 
-def LeNetKerasMSE(input_shape, dropout=.5 ):
+def LeNetKerasMSE(input_shape, dropout=.3 ):
 
     """
     Implement classic lenet architecture in keras for regression
@@ -43,6 +43,34 @@ def LeNetKerasMSE(input_shape, dropout=.5 ):
     model.add(Dropout(dropout))
     model.add(Dense(84, activation='relu'))
     model.add(Dropout(dropout))
+    model.add(Dense(1, activation='linear'))
+
+    return model
+
+
+def NvidiaNet(input_shape, dropout = .3):
+    model = Sequential()
+
+    # normalization
+    model.add(Lambda(lambda x: x / 127.5 - 1., input_shape=input_shape))
+    model.add(Cropping2D(cropping=((70, 25), (0, 0))))
+
+    model.add(Conv2D(24, kernel_size=(5, 5), strides=(2,2), activation='relu'))
+    model.add(Conv2D(36, kernel_size=(5, 5), strides=(2, 2), activation='relu'))
+    model.add(Conv2D(48, kernel_size=(5, 5), strides=(2, 2), activation='relu'))
+
+    model.add(Conv2D(64, kernel_size=(3, 3), activation='relu'))
+    model.add(Conv2D(64, kernel_size=(3, 3), activation='relu'))
+
+    model.add(Flatten())
+
+    model.add(Dense(1164, activation='relu'))
+    model.add(Dropout(dropout))
+    model.add(Dense(100, activation='relu'))
+    model.add(Dropout(dropout))
+    model.add(Dense(50, activation='relu'))
+    model.add(Dropout(dropout))
+    model.add(Dense(10, activation='relu'))
     model.add(Dense(1, activation='linear'))
 
     return model
