@@ -9,7 +9,7 @@ outmodelname = 'models/model.h5'
 
 ch, row, col = 3, 160, 320  # Original Image shape
 batch_size = 256
-keep_prob = 1.0
+keep_prob = .9
 min_angle = -1000
 max_angle = 1000
 ds = 1
@@ -41,7 +41,7 @@ history_object = model.fit_generator(train_generator,
                                      steps_per_epoch=steps_per_epoch,
                                      validation_data=validation_generator,
                                      validation_steps=validation_steps,
-                                     epochs=100,
+                                     epochs=30,
                                      callbacks=[early_stopping],
                                      verbose = 1
                                      )

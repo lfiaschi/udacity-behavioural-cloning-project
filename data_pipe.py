@@ -62,7 +62,7 @@ def load_samples_metadata(exclude_second_track=True , ds = 1):
 # https://chatbotslife.com/using-augmentation-to-mimic-human-driving-496b569760a9
 
 def random_flip_image(img, angle, prob=.5):
-    if np.abs(angle) > 0.01 and np.random.rand() < prob:
+    if  np.random.rand() < prob:
         img = np.fliplr(img)
         angle = - angle
     return img, angle

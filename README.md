@@ -6,30 +6,32 @@ Behavioral Cloning: Navigating a Car in a Simulator
 ---
 
 The goal of this project is to train a deep neural network to drive a car in a simulator as a human 
-would do. The steps of this project are the following:
+would do. 
+
+![Demo CountPages alpha](./plots/mountain_track.gif)](https://www.youtube.com/watch?v=DUhGXYgVido)
+
+The steps of this project are the following:
 
 * Use the simulator to collect data of good driving behavior
 * Build, a convolution neural network in Keras that predicts steering angles from images
 * Train and validate the model with a training and validation set
 * Test that the model successfully drives around track one without leaving the road
-* Summarize the results with a written report
 
-The following animations show the performance of the model on the two tracks
+**The model drives correctly all the available tracks from the udacity course, while being trained only on
+the lake and the jungle track. Here are some videos of the model driving around**
 
-[//]: # (Image References)
+[![IMAGE ALT TEXT](http://img.youtube.com/vi/GTDBoOSJ20E/1.jpg)](http://www.youtube.com/watch?v=GTDBoOSJ20E "Lake Track Success")
+[![IMAGE ALT TEXT](http://img.youtube.com/vi/DUhGXYgVido/1.jpg)](http://www.youtube.com/watch?v=DUhGXYgVido "Jungle Track Success")
+[![IMAGE ALT TEXT](http://img.youtube.com/vi/foVvq6IwuDk/1.jpg)](http://www.youtube.com/watch?v=foVvq6IwuDk "Mountain Track Success")
 
-[image1]: ./plots/placeholder.png "Model Visualization"
-[image2]: ./plots/placeholder.png "Grayscaling"
-[image3]: ./plots/placeholder_small.png "Recovery Image"
-[image4]: ./plots/placeholder_small.png "Recovery Image"
-[image5]: ./plots/placeholder_small.png "Recovery Image"
-[image6]: ./plots/placeholder_small.png "Normal Image"
-[image7]: ./plots/placeholder_small.png "Flipped Image"
+[Lake Track Success](http://www.youtube.com/watch?v=GTDBoOSJ20E "Lake Track Success") | 
+[Jungle Track Success](http://www.youtube.com/watch?v=DUhGXYgVido "Jungle Track Success") |
+[Mountain Track Success](http://www.youtube.com/watch?v=foVvq6IwuDk "Mountain Track Success")
+
+
 
 ---
 ### Files Submitted 
-
-[![Demo CountPages alpha](./plots/mountain_track.gif)](https://www.youtube.com/watch?v=ek1j272iAmc)
 
 
 My project includes the following files:
@@ -37,29 +39,30 @@ My project includes the following files:
 * `models.py` containing the definition of the Keras models 
 * `train.py` containing the training loop for the model
 * `drive.py` for driving the car in autonomous mode (N.b. this file was modified to increase the speed of the car)
-* `models/model.h5`, containing a trained convolution neural network which can be downloaded here 
+* `models/model.h5`, should contain the trained convolution neural network which can be downloaded [here](https://s3.eu-central-1.amazonaws.com/luca-public/udacity/behavioural-cloning/models_done2.zip) 
 * `data_pipe.py`, containing code for generators which stream the training images from disk and apply data augmentation
 *  `fabfile.py`, fabric file which is used for automation (uploading code to AWS and download trained model)
+*  `data` , folder containing the training data which can be dowloaded [here](https://s3.eu-central-1.amazonaws.com/luca-public/udacity/behavioural-cloning/data.zip) 
 * `README.md` summarizing the project
 
 Using the Udacity provided simulator and my `drive.py` file, the car can be driven autonomously around the track by executing 
 ```sh
 python drive.py models/model.h5
 ```
-
+---
 ###Model Architecture and Training Strategy
 
-#### Model architecture & Training Strategy
+#### Model architecture 
 
-The project has developed in over few iterations. First, I established a solid data loading and processing pipeline to allow faster adjustment to the modeling part in the next steps.
-For this reasons, some generators to stream training and validation data from disk were implemented in `data_pipe.py` in such a way that I could easily add more training and validation data.
+The project was developed over iterations. First, I established a solid data loading and processing pipeline to allow faster adjustment to the modeling part in the next steps.
+For this reason, the generators to stream training and validation data from disk were implemented in `data_pipe.py` in such a way that I could easily add more training and validation data.
 The data is organized in the folders under `data`, each sub folder corresponds to different runs (explained later) and if a new folder is added this is automatically added 
-by the generators to the training / validation loop.  Also, I wrote a fabric file to easily upload data and code to AWS, train the model and download the trained models definitions.
+by the generators to the training / validation loop.  Also, I wrote a fabric file to easily upload data and code to AWS, train the model and download the result to run the simulation locally.
 
 In order to establish the training and testing framework I initially used a very simple network with only one linear layer.
-However, the final model architecture (`models.py` lines 56-93) is inspired to the architecutre published by Nvidia
-self driving car team [!url](https://devblogs.nvidia.com/parallelforall/deep-learning-self-driving-cars/) 
-consisted of a convolution neural network with the following  layers and layer sizes.
+However, the final model architecture (`models.py` lines 56-93) is inspired to the architecutre published
+ [published by the Nvidia team ](https://devblogs.nvidia.com/parallelforall/deep-learning-self-driving-cars/).
+It consist of a convolution neural network with the following layers and layer sizes.
 
 ```
 _________________________________________________________________
@@ -105,70 +108,64 @@ Non-trainable params: 0
 _________________________________________________________________
 ```
 
-Compared to the original Nvidia architecture, rectified linear units were used throughout the entire network except for
-the initial and final layer.  Three other layers were added: `lambda_1` implements normalization by shifting the image values in `[-1,1]` 
-and `cropping2d_1` removes the 65 and the bottom 25 pixels, while `conv2d_1` is a 3x3 convolutional layer with linear activation 
-which is used to allow the model to learn automatically which transformation of intial RGB color space to be used 
-(trick taken from ![url](https://chatbotslife.com/using-augmentation-to-mimic-human-driving-496b569760a9) )
+Compared to the original Nvidia architecture there are some differences
+ 
+- Rectified linear units were used throughout the entire network except for
+the initial and final layer.  
+- `lambda_1` implements normalization layer which shifts pixel values in `[-1,1]` 
+- `cropping2d_1` removes the 65 and the bottom 25 pixels
+- `conv2d_1` is a 3x3 convolutional layer with linear activation which is used to allow the model to learn automatically 
+a transformation of intial RGB color space to be used (trick taken [here](https://chatbotslife.com/using-augmentation-to-mimic-human-driving-496b569760a9) )
 
-The validation set helped determine if the model was over or under fitting. As explained in the data collection part 
-the validation set consisted of two full laps around each track and was saparated from the training set. 
-Qualitatively a lower `MSE` on the validation set seemed to correlate well with an improved driving behaviour of the car.
-In order to reduce overfitting an aggressive dropout (droupout prob .30) was used between the last three final fully connected layers as well as data augmentation strategies (described later).
-I used an adam optimizer so that manually  training the learning rate wasn't necessary and used early stopping with patience of 3 to decide the optimal number  of epochs (which happend to be around 10 most of the times).
+The validation set helped to determine if the model was over or under fitting. 
+As explained in the data collection part the validation set consisted of two full laps around the Lake and Jungle tracks 
+and was saparated from the training set. Qualitatively a lower `MSE` on the validation correlate well with an improved 
+driving behaviour of the car. In order to reduce overfitting an aggressive dropout (droupout prob .30) was used between 
+the last three final fully connected layers as well as data augmentation strategies (described later). 
 
-
-
-###Model Architecture and Training Strategy
-
-####1. Solution Design Approach
-
-The overall strategy for deriving a model architecture was to ...
-
-My first step was to use a convolution neural network model similar to the ... I thought this model might be appropriate because ...
-
-In order to gauge how well the model was working, I split my image and steering angle data into a training and validation set. I found that my first model had a low mean squared error on the training set but a high mean squared error on the validation set. This implied that the model was overfitting. 
-
-To combat the overfitting, I modified the model so that ...
-
-Then I ... 
-
-The final step was to run the simulator to see how well the car was driving around track one. There were a few spots where the vehicle fell off the track... to improve the driving behavior in these cases, I ....
-
-At the end of the process, the vehicle is able to drive autonomously around the track without leaving the road.
-
----
-
-####3. Creation of the Training Set & Training Process
-
-The training and validation data used can be downloaded here in zip format.
-
-To capture good driving behavior, I first recorded two datasets each one consisting of one full lap on the track one using center lane driving. 
-Here is an example image of center lane driving:
-
-![alt text][image2]
-
-I then recorded two other datasests the vehicle recovering from the left side and right sides of the road back to center so that the vehicle would learn to 
-
-These images show what a recovery looks like starting from ... :
-
-![alt text][image3]
-![alt text][image4]
-![alt text][image5]
-
-Then I repeated this process on track two in order to get more data points.
-
-To augment the data sat, I also flipped images and angles thinking that this would ... For example, here is an image that has then been flipped:
-
-![alt text][image6]
-![alt text][image7]
+Also, I used an adam optimizer so that manually  training the learning rate wasn't necessary and used 
+early stopping with patience of 3 to decide the optimal number of epochs (which happend to be around 20 most of the times).
 
 
-Since at the end my model was still drifting on a very difficult curve on the first track I added a few more frames which
-would allow the model to learn the correct driving behaviour on that part of the track.
+#### Creation of the Training / Validation Set & Training Process
 
-After the collection process, I had X number of data points. I then preprocessed this data by ...
+We use the `jungle` track and the `lake` track for training and validation and we keep the `mountain` track as an independent 
+test to assess the generalization capabilities of this model set.
 
+
+To capture good driving behavior, I first recorded two datasets each one consisting of one full 
+lap on the lake track while using center lane driving.   I then recorded two other datasests the vehicle recovering from the 
+left side and right sides of the road back to center so that the vehicle would learn to come back on track when too close to the side lane.
+
+Then I repeated this process on the mountain track two in order to get more data points.
+
+From a look at the distribution of twe steering angles for these two tracks (shown below) is evident that the Jungle track 
+is much more challenging with a  much larger steering agle required. Also, the Lake track has a bias 
+towards negative steering angles.
+
+![alt text](./plots/angles_distribution.png)
+
+For these reasons I decided to augment the data using random transformations of the images. 
+The image transformations, implemented in `data_pipe.py` ( suggested [in this blog](https://devblogs.nvidia.com/parallelforall/deep-learning-self-driving-cars/) )  include:
+
+- flipping images
+- adding shadows to the images
+- using left and right camera images
+- adding random horizontal shifts to the images
+- randomizing image brightness
+
+Here some examples of the augmented images with the corresponding steering angles:
+
+![alt text](./plots/sample_augmented_images.png)
+
+After these operations the distribution of the steering angles on the training set appear much more balanced and similar 
+to a bell shape
+
+![alt text](./plots/angles_distribution_modified.png)
+
+Finally, since at the end my model was still drifting on a very difficult curve on the first track I added a few more frames which
+would allow the model to learn the correct driving behaviour on that part of the track and finally be able to solve correctly all the
+three challenges (Lake, Mountain, Jungle).
 
 
 
