@@ -1,14 +1,13 @@
 from models import LeNetKerasMSE, Simple, NvidiaNet
 from data_pipe import *
 from keras.callbacks import EarlyStopping
-from math import ceil
 from matplotlib import pyplot as plt
 
 plt.switch_backend('agg')
 
 outmodelname = 'models/model.h5'
 
-ch, row, col = 3, 160, 320  # Image shape
+ch, row, col = 3, 160, 320  # Original Image shape
 batch_size = 256
 keep_prob = .9
 min_angle = -1000.0
@@ -16,15 +15,15 @@ max_angle = 1000.0
 
 early_stopping = EarlyStopping(monitor='val_loss', patience=5)
 
-train_samples, validation_samples = load_meta_new(exclude_track=None)
+train_samples, validation_samples = load_samples_metadata(exclude_track=False)
 
-train_generator = generator_new(train_samples,
+train_generator = train_generator(train_samples,
                                 batch_size,
                                 keep_prob=keep_prob,
                                 min_angle = min_angle,
                                 max_angle = max_angle)
 
-validation_generator = generator_validation(validation_samples,
+validation_generator = validation_generator(validation_samples,
                                             batch_size=batch_size)
 
 model = NvidiaNet((row,col,ch), dropout=.3)

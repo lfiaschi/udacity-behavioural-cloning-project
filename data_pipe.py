@@ -246,7 +246,7 @@ def validation_generator(samples,
         if not loop_forever: break
 
 
-def load_train_data(lapname):
+def load_data(lapname):
     """
     Load a center images and angle of a single 
     :param lapname: 
