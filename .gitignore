@@ -2,4 +2,4 @@ data
 *.pyc
 .DS_Store
 *.h5
-
+*.ipynb_*
