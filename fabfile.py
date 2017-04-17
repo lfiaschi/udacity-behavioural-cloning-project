@@ -1,7 +1,11 @@
-from fabric.api import local, env, put, cd, run
-from fabric.api import sudo, warn_only
+"""
+Utility Fabric file which is used for automation of tasks such as download models from AWS train and fetch 
+Newly trained models
+"""
+
+from fabric.api import  env, run
 from fabric.contrib.project import rsync_project
-from fabric.context_managers import cd, prefix
+from fabric.context_managers import prefix
 import os
 WORKDIR = '/home/carnd/CarND-Behavioral-Cloning-P3'
 
@@ -11,15 +15,31 @@ env.user = 'carnd'
 
 
 def sync():
+    """
+    Synchronize code in the local repo with AWS - GPU instance 
+    :return: 
+    """
+
     rsync_project(remote_dir=WORKDIR, local_dir='.', delete=True,
                   exclude=['*.pyc', '*.DS_Store', '.git', '.cache/*', '*json', '*pkl','models'])
 
 
 def fetch_models():
-    os.system('rsync -rtuv {}@{}:/home/carnd/CarND-Behavioral-Cloning-P3/models ./'.format(env.user, env.hosts[0]))
+    """
+    Fetch last trained model from AWS
+    :return: 
+    """
+
+    os.system('rsync -rtuv {}@{}:/home/carnd/CarND-Behavioral-Cloning-P3/models ./'.format(env.user,
+                                                                                           env.hosts[0]))
 
 
 def deploy():
+
+    """
+    Redeploy code, train model on AWS and download last version locally
+    :return: 
+    """
 
     sync()
 
