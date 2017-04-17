@@ -91,3 +91,8 @@ def NvidiaNet(input_shape, dropout = .3):
     model.add(Dense(1, activation='linear'))
 
     return model
+
+if __name__ == '__main__':
+    ch, row, col = 3, 160, 320  # Original Image shape
+    model = NvidiaNet((row,col,ch))
+    print(model.summary())

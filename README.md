@@ -29,7 +29,7 @@ The following animations show the performance of the model on the two tracks
 ---
 ### Files Submitted 
 
-[![Demo CountPages alpha](https://s3.eu-central-1.amazonaws.com/luca-public/udacity/behavioural-cloning/mountain_track.gif)](https://www.youtube.com/watch?v=ek1j272iAmc)
+[![Demo CountPages alpha](./plots/mountain_track.gif)](https://www.youtube.com/watch?v=ek1j272iAmc)
 
 
 My project includes the following files:

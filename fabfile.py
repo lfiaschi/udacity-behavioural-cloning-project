@@ -21,7 +21,7 @@ def sync():
     """
 
     rsync_project(remote_dir=WORKDIR, local_dir='.', delete=True,
-                  exclude=['*.pyc', '*.DS_Store', '.git', '.cache/*', '*json', '*pkl','models'])
+                  exclude=['*.pyc', '*.DS_Store', '.git', '.cache/*', '*json', '*pkl','models*'])
 
 
 def fetch_models():

@@ -7,7 +7,7 @@ import numpy as np
 SIDE_CORRECTION = .25
 
 
-def load_samples_metadata(exclude_second_track=True):
+def load_samples_metadata(exclude_second_track=True , ds = 1):
     """
     Load some metadata for the training and validation samples,
     decide weather to keep or excluding the second track
@@ -24,7 +24,7 @@ def load_samples_metadata(exclude_second_track=True):
         folder = os.path.abspath(folder)
         if exclude_second_track and exclude_second_track in folder: continue
 
-        print('Loading data from {}'.format(folder))
+        print('Loading TRAINING data from {}'.format(folder))
         samples_tmp = pd.read_csv('{}/driving_log.csv'.format(folder), encoding='utf8')
         for col in ['left', 'right', 'center']:
             samples_tmp[col] = samples_tmp[col].str.strip().apply(lambda x: os.path.join(folder, x))
@@ -34,16 +34,22 @@ def load_samples_metadata(exclude_second_track=True):
     # Validation
 
     validation_samples = []
-    for folder in sorted(glob.glob('data/*_data'), reverse=True):
+    for folder in sorted(glob.glob('data/validation*'), reverse=True):
         folder = os.path.abspath(folder)
         if exclude_second_track and exclude_second_track in folder: continue
 
-        print('Loading data from {}'.format(folder))
+        print('Loading VALIDATION data from {}'.format(folder))
         samples_tmp = pd.read_csv('{}/driving_log.csv'.format(folder), encoding='utf8')
         for col in ['left', 'right', 'center']:
             samples_tmp[col] = samples_tmp[col].str.strip().apply(lambda x: os.path.join(folder, x))
 
         validation_samples.extend(samples_tmp.to_dict('records'))
+
+    train_samples = np.array(train_samples)
+    validation_samples = np.array(validation_samples)
+
+    train_samples = train_samples[::ds]
+    validation_samples = train_samples[::ds]
 
     # For the training samples augment the data:
     print('Train samples : {}'.format(len(train_samples)))
@@ -56,7 +62,7 @@ def load_samples_metadata(exclude_second_track=True):
 # https://chatbotslife.com/using-augmentation-to-mimic-human-driving-496b569760a9
 
 def random_flip_image(img, angle, prob=.5):
-    if np.random.rand() < prob:
+    if np.abs(angle) > 0.01 and np.random.rand() < prob:
         img = np.fliplr(img)
         angle = - angle
     return img, angle
@@ -181,11 +187,13 @@ def train_generator(samples,
             if batch_sample['steering'] == 0 and np.random.rand() <= 1 - keep_prob:
                 continue
 
-            # May remove angles which are two wide
-            if batch_sample['steering'] < min_angle or batch_sample['steering'] > max_angle:
-                continue
+
 
             img, angle = augment_image_file_train(batch_sample)
+
+            # May remove angles which are two wide
+            if angle < min_angle - 1e-3 or angle > max_angle + 1e-3:
+                continue
 
             images.append(img)
             angles.append(angle)
@@ -204,7 +212,8 @@ def train_generator(samples,
 
 def validation_generator(samples,
                          batch_size=128,
-                         loop_forever=True):
+                         loop_forever=True,
+                         load_images= True):
     """
     Load samples from disk for validation set, does not do any data transformation
     :param samples: rows from validation csv files as json 
@@ -228,10 +237,11 @@ def validation_generator(samples,
             batch_sample = samples[ii]
 
             angle = batch_sample['steering']
-            image = cv2.imread(batch_sample['center'].strip())
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            if load_images:
+                image = cv2.imread(batch_sample['center'].strip())
+                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
-            images.append(image)
+                images.append(image)
             angles.append(angle)
 
             if len(angles) == batch_size:

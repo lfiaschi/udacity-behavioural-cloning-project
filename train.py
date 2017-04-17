@@ -9,13 +9,14 @@ outmodelname = 'models/model.h5'
 
 ch, row, col = 3, 160, 320  # Original Image shape
 batch_size = 256
-keep_prob = .9
-min_angle = -1000.0
-max_angle = 1000.0
+keep_prob = 1.0
+min_angle = -1000
+max_angle = 1000
+ds = 1
 
-early_stopping = EarlyStopping(monitor='val_loss', patience=5)
+early_stopping = EarlyStopping(monitor='val_loss', patience=3)
 
-train_samples, validation_samples = load_samples_metadata(exclude_track=False)
+train_samples, validation_samples = load_samples_metadata(exclude_second_track=False, ds=ds)
 
 train_generator = train_generator(train_samples,
                                 batch_size,
