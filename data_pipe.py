@@ -1,178 +1,264 @@
 import glob
 import os
 import pandas as pd
-from sklearn.model_selection import train_test_split
 import cv2
 import numpy as np
-import sklearn
+
+SIDE_CORRECTION = .25
 
 
-DOWSAMPLE_FACTOR = .95
-SIDE_CORRECTION = .2
-
-
-def load_meta(test_size = .2):
+def load_samples_metadata(exclude_second_track=True):
     """
-    Load some metadata for the training and validation samples
+    Load some metadata for the training and validation samples,
+    decide weather to keep or excluding the second track
     :return: 
     """
-    samples = []
-    for folder in sorted(glob.glob('data/*_data'),reverse=True):
+
+    if exclude_second_track:
+        exclude_second_track = 'track2'
+
+    # Train data
+
+    train_samples = []
+    for folder in sorted(glob.glob('data/*_data'), reverse=True):
         folder = os.path.abspath(folder)
+        if exclude_second_track and exclude_second_track in folder: continue
 
         print('Loading data from {}'.format(folder))
-        samples_tmp = pd.read_csv('{}/driving_log.csv'.format(folder),encoding='utf8')
-        for col in ['left','right','center']:
-            samples_tmp[col] = samples_tmp[col].str.strip().apply(lambda x: os.path.join(folder,x))
+        samples_tmp = pd.read_csv('{}/driving_log.csv'.format(folder), encoding='utf8')
+        for col in ['left', 'right', 'center']:
+            samples_tmp[col] = samples_tmp[col].str.strip().apply(lambda x: os.path.join(folder, x))
 
-        samples.extend(samples_tmp.to_dict('records'))
+        train_samples.extend(samples_tmp.to_dict('records'))
 
-    print('Total samples : {}'.format(len(samples)))
+    # Validation
 
-    if test_size:
-        train_samples, validation_samples = train_test_split(samples, test_size=test_size)
+    validation_samples = []
+    for folder in sorted(glob.glob('data/*_data'), reverse=True):
+        folder = os.path.abspath(folder)
+        if exclude_second_track and exclude_second_track in folder: continue
 
-    else:
-        train_samples, validation_samples = samples, []
+        print('Loading data from {}'.format(folder))
+        samples_tmp = pd.read_csv('{}/driving_log.csv'.format(folder), encoding='utf8')
+        for col in ['left', 'right', 'center']:
+            samples_tmp[col] = samples_tmp[col].str.strip().apply(lambda x: os.path.join(folder, x))
 
+        validation_samples.extend(samples_tmp.to_dict('records'))
 
-    #For the training samples augment the data:
-    tmp = list()
+    # For the training samples augment the data:
     print('Train samples : {}'.format(len(train_samples)))
     print('Validation samples  : {}'.format(len(validation_samples)))
-
 
     return train_samples, validation_samples
 
 
-def generator(samples, batch_size=128 ,
-              load_images= True,
-              loop_forever=True,
-              shuffle = True,
-              flip_images=False,
-              include_side_images=True,
-              downsample_angles_at_zero=False,
-              min_angle = -100000,
-              max_angle = +100000):
+# The following image processing images are taken from
+# https://chatbotslife.com/using-augmentation-to-mimic-human-driving-496b569760a9
 
+def random_flip_image(img, angle, prob=.5):
+    if np.random.rand() < prob:
+        img = np.fliplr(img)
+        angle = - angle
+    return img, angle
+
+
+def augment_brightness_camera_images(image):
+    image1 = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
+    image1 = np.array(image1, dtype=np.float64)
+    random_bright = .5 + np.random.uniform()
+    image1[:, :, 2] = image1[:, :, 2] * random_bright
+    image1[:, :, 2][image1[:, :, 2] > 255] = 255
+    image1 = np.array(image1, dtype=np.uint8)
+    image1 = cv2.cvtColor(image1, cv2.COLOR_HSV2RGB)
+    return image1
+
+
+def add_random_shadow(image):
+    top_y = 320 * np.random.uniform()
+    top_x = 0
+    bot_x = 160
+    bot_y = 320 * np.random.uniform()
+    image_hls = cv2.cvtColor(image, cv2.COLOR_RGB2HLS)
+    shadow_mask = 0 * image_hls[:, :, 1]
+    X_m = np.mgrid[0:image.shape[0], 0:image.shape[1]][0]
+    Y_m = np.mgrid[0:image.shape[0], 0:image.shape[1]][1]
+    shadow_mask[((X_m - top_x) * (bot_y - top_y) - (bot_x - top_x) * (Y_m - top_y) >= 0)] = 1
+
+    # random_bright = .25+.7*np.random.uniform()
+    if np.random.randint(2) == 1:
+        random_bright = .5
+        cond1 = shadow_mask == 1
+        cond0 = shadow_mask == 0
+        if np.random.randint(2) == 1:
+            image_hls[:, :, 1][cond1] = image_hls[:, :, 1][cond1] * random_bright
+        else:
+            image_hls[:, :, 1][cond0] = image_hls[:, :, 1][cond0] * random_bright
+    image = cv2.cvtColor(image_hls, cv2.COLOR_HLS2RGB)
+    return image
+
+
+def trans_image(image, steer, trans_range):
+    # Translation
+    tr_x = trans_range * np.random.uniform() - trans_range / 2
+    steer_ang = steer + tr_x / trans_range * 2 * .2
+    # tr_y = 40 * np.random.uniform() - 40 / 2
+    tr_y = 0
+    Trans_M = np.float32([[1, 0, tr_x], [0, 1, tr_y]])
+    col, row = image.shape[:2]
+    image_tr = cv2.warpAffine(image, Trans_M, (row, col))
+
+    return image_tr, steer_ang
+
+
+def augment_image_file_train(line_data):
+    """
+    Take a sample from the data (row from csv file in json format) and 
+    return a tuple of (img, angle). The img is randomly augmented using 
+    horizontal shifts, brightness adjustments and randomly adding shadows.
+    These transformations are taken from 
+    https://chatbotslife.com/using-augmentation-to-mimic-human-driving-496b569760a9
+    :param line_data: 
+    :return: 
+    """
+
+    i_lrc = np.random.randint(3)
+
+    if (i_lrc == 0):
+        path_file = line_data['left'].strip()
+        shift_ang = SIDE_CORRECTION
+
+    if (i_lrc == 1):
+        path_file = line_data['center'].strip()
+        shift_ang = 0.
+
+    if (i_lrc == 2):
+        path_file = line_data['right'].strip()
+        shift_ang = - SIDE_CORRECTION
+
+    y_steer = line_data['steering'] + shift_ang
+    image = cv2.imread(path_file)
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    image, y_steer = trans_image(image, y_steer, 100)
+    image = augment_brightness_camera_images(image)
+    image = add_random_shadow(image)
+
+    image = np.array(image)
+
+    image, y_steer = random_flip_image(image, y_steer)
+
+    return image, y_steer
+
+
+def train_generator(samples,
+                    batch_size=128,
+                    loop_forever=True,
+                    keep_prob=1.0,
+                    min_angle=-100000,
+                    max_angle=+100000):
+    """
+    Allow keras to stream samples from disk for the training set. 
+    Every sample is augemeted using image processing, 0 steering data can be downsampled.
+    
+    :param samples: 
+    :param batch_size: 
+    :param loop_forever: 
+    :param keep_prob: 
+    :param min_angle: 
+    :param max_angle: 
+    :return: 
+    """
     num_samples = len(samples)
-
-    while 1: # Loop forever so the generator never terminates
-        if shuffle:
-            samples = sklearn.utils.shuffle(samples)
-
+    while 1:
         images = []
         angles = []
 
+        for _ in range(0, num_samples):
 
-        for ii in range(0, num_samples):
+            ii = np.random.randint(0, num_samples)
 
             batch_sample = samples[ii]
-        # for offset in range(0, num_samples, batch_size):
-        #     batch_samples = samples[offset:offset+batch_size]
-        #
-        #     images = []
-        #     angles = []
-        #
-        #     for batch_sample in batch_samples:
 
-            # Remove angles at zero which would weight too much otherwise
-            if downsample_angles_at_zero and batch_sample['steering'] == 0 and np.random.rand() <= DOWSAMPLE_FACTOR:
+            if batch_sample['steering'] == 0 and np.random.rand() <= 1 - keep_prob:
                 continue
 
             # May remove angles which are two wide
             if batch_sample['steering'] < min_angle or batch_sample['steering'] > max_angle:
                 continue
 
-            # May add a flipped version of the initial image instead of original image with equal probability
-            if not flip_images:
-                flip_image_flag = False
-            else:
-                flip_image_flag = np.random.rand() < .5
+            img, angle = augment_image_file_train(batch_sample)
 
-            center_angle = float(batch_sample['steering'])
-            if flip_image_flag:
-                center_angle = -center_angle
-            angles.append(center_angle)
-
-            if load_images:
-                center_image = cv2.imread(batch_sample['center'])
-                if flip_image_flag:
-                    center_image = np.fliplr(center_image)
-                images.append(center_image)
-
-            # May include the side images
-            if include_side_images:
-                lr_flag = np.random.rand() > .5
-                if load_images:
-
-                    side_img = batch_sample['left'] if lr_flag else batch_sample['right']
-                    side_img = cv2.imread(side_img)
-                    images.append(side_img)
-
-                angles.append(center_angle + SIDE_CORRECTION if lr_flag else center_angle - SIDE_CORRECTION)
+            images.append(img)
+            angles.append(angle)
 
             if len(angles) == batch_size:
                 X_train = np.array(images)
                 y_train = np.array(angles).squeeze()
-
-                if load_images:
-                    assert y_train.ndim == 1, y_train.shape
-                    assert X_train.ndim == 4, X_train.shape
-
-                    assert X_train.shape[0] <= batch_size, X_train.shape
-                    assert X_train.shape[-1] == 3, 'Last dimension must be channel !!'
-
-                if shuffle:
-                    X_train, y_train = sklearn.utils.shuffle(X_train, y_train)
 
                 yield X_train, y_train
 
                 images = []
                 angles = []
 
+        if not loop_forever: break
+
+
+def validation_generator(samples,
+                         batch_size=128,
+                         loop_forever=True):
+    """
+    Load samples from disk for validation set, does not do any data transformation
+    :param samples: rows from validation csv files as json 
+    :param batch_size: 
+    :param loop_forever: wheather to stop after one run over the entire data
+    :return: 
+    """
+
+    num_samples = len(samples)
+
+    while 1:
+
+        images = []
+        angles = []
+
+        # Do not actually need to shuffle for the validation data
+        # samples = sklearn.utils.shuffle(samples)
+
+        for ii in range(0, num_samples):
+
+            batch_sample = samples[ii]
+
+            angle = batch_sample['steering']
+            image = cv2.imread(batch_sample['center'].strip())
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+            images.append(image)
+            angles.append(angle)
+
+            if len(angles) == batch_size:
+                X_train = np.array(images)
+                y_train = np.array(angles).squeeze()
+
+                yield X_train, y_train
+
+                images = []
+                angles = []
 
         if not loop_forever: break
 
 
-def get_generator_length(samples,
-                         batch_size=128 ,
-                      load_images= True,
-                      flip_images=False,
-                      include_side_images=True,
-                      downsample_angles_at_zero=False,
-                      min_angle = -100000,
-                      max_angle = +100000
-                         ):
-
-
-    train_generator = generator(samples, batch_size,
-                                load_images=load_images,
-                                loop_forever=False,
-                                shuffle=False,
-                                flip_images=flip_images,
-                                include_side_images=include_side_images,
-                                downsample_angles_at_zero=downsample_angles_at_zero,
-                                min_angle=-100000,
-                                max_angle=+100000
-                                )
-
-    all_angles_modified = list()
-    for _, y in train_generator:
-        all_angles_modified.append(y)
-    all_angles_modified = np.concatenate(all_angles_modified)
-
-    return len(all_angles_modified)
-
-
-def load_lap(lapname):
+def load_train_data(lapname):
+    """
+    Load a center images and angle of a single 
+    :param lapname: 
+    :return: 
+    """
 
     samples_tmp = pd.read_csv('data/{}/driving_log.csv'.format(lapname), encoding='utf8')
 
     images = list()
     angles = list()
     filenames = list()
-    for _,row in samples_tmp.iterrows():
+    for _, row in samples_tmp.iterrows():
         row['center'] = 'data/{}/{}'.format(lapname, row['center'])
         filenames.append(row['center'])
         center_image = cv2.imread(row['center'])
@@ -186,24 +272,32 @@ def load_lap(lapname):
     return X_train, filenames, y_train
 
 
+def set_paths_new_data():
+    """
+    This function is used to set correct filepaths when new data is acquired
+    :return: 
+    """
+
+    # Put files in better format
+
+    for folder in sorted(glob.glob('data/*_data'), reverse=True) + sorted(glob.glob('data/validation_*'), reverse=True):
+        try:
+            folder = os.path.abspath(folder)
+            filename = '{}/dr' \
+                       'iving_log.csv'.format(folder)
+            print('Loading data from {}'.format(folder))
+            samples_tmp = pd.read_csv(filename, encoding='utf8')
+            samples_tmp.columns = ['center', 'left', 'right', 'steering', 'throttle', 'brake',
+                                   'speed']
+
+            for col in ['left', 'right', 'center']:
+                samples_tmp[col] = samples_tmp[col].str.strip().apply(lambda x: 'IMG/' + x.split('/')[-1])
+
+            samples_tmp.to_csv(filename, index=False, encoding='utf8')
+
+        except FileNotFoundError:
+            pass
+
+
 if __name__ == '__main__':
-
-        # Put files in better format
-
-        for folder in sorted(glob.glob('data/*_data'),reverse=True):
-            try:
-                folder = os.path.abspath(folder)
-                filename = '{}/dr' \
-                           'iving_log.csv'.format(folder)
-                print('Loading data from {}'.format(folder))
-                samples_tmp = pd.read_csv(filename,encoding='utf8')
-                samples_tmp.columns = ['center', 'left', 'right', 'steering', 'throttle', 'brake',
-                                       'speed']
-
-                for col in ['left','right','center']:
-                    samples_tmp[col] = samples_tmp[col].str.strip().apply(lambda x: 'IMG/' + x.split('/')[-1])
-
-                samples_tmp.to_csv(filename,index=False,encoding='utf8')
-
-            except FileNotFoundError:
-                pass
+    set_paths_new_data()
