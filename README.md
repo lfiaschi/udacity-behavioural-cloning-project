@@ -129,9 +129,8 @@ early stopping with patience of 3 to decide the optimal number of epochs (which 
 
 #### Creation of the Training / Validation Set & Training Process
 
-We use the `jungle` track and the `lake` track for training and validation and we keep the `mountain` track as an independent 
-test to assess the generalization capabilities of this model set.
-
+I used the `jungle` track and the `lake` track for training and validation and kept the `mountain` track as an independent 
+test set to assess the generalization capabilities of the model.
 
 To capture good driving behavior, I first recorded two datasets each one consisting of one full 
 lap on the lake track while using center lane driving.   I then recorded two other datasests the vehicle recovering from the 
@@ -139,8 +138,22 @@ left side and right sides of the road back to center so that the vehicle would l
 
 Then I repeated this process on the mountain track two in order to get more data points.
 
-From a look at the distribution of twe steering angles for these two tracks (shown below) is evident that the Jungle track 
-is much more challenging with a  much larger steering agle required. Also, the Lake track has a bias 
+To obtain an indipendent validation set, my first choice was to split data randomly. However, I noted that the error do 
+not correlate well with driving performance with this procedure, because in the data there are many frames which look very
+similar and hence training and validation set may not be completely independent. Hence I decided to record two additional
+laps for each track (Jungle and Lake) and keep these runs exclusively for validation. In total I have the following (the fact
+that training and validation have exactly the same size is just random):
+
+```
+Train samples : 24324
+Validation samples  : 24324
+Number of training steps 95
+Number of validation steps 95
+```
+
+
+From a look at the distribution of the steering angles for these two tracks (shown below) is evident that the Jungle track 
+is much more challenging with a  much larger steering angle required. Also, the Lake track has a bias 
 towards negative steering angles.
 
 ![alt text](./plots/angles_distribution.png)
