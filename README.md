@@ -8,7 +8,7 @@ Behavioral Cloning: Navigating a Car in a Simulator
 The goal of this project is to train a deep neural network to drive a car in a simulator as a human 
 would do. 
 
-![Demo CountPages alpha](./plots/mountain_track.gif)](https://www.youtube.com/watch?v=DUhGXYgVido)
+[![Demo CountPages alpha](./plots/mountain_track.gif)](https://www.youtube.com/watch?v=DUhGXYgVido)
 
 The steps of this project are the following:
 
